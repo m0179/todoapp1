@@ -16,13 +16,14 @@ class TodoService:
     """
 
     @staticmethod
-    def create_todo(db: Session, todo_data: TodoCreate) -> Todo:
+    def create_todo(db: Session, todo_data: TodoCreate, user_id: int) -> Todo:
         """
         Create a new todo item.
         
         Args:
             db: Database session
             todo_data: Todo creation data
+            user_id: ID of the user creating the todo
             
         Returns:
             Todo: Created todo object
@@ -31,13 +32,14 @@ class TodoService:
             todo = TodoService.create_todo(db, TodoCreate(
                 title="Buy groceries",
                 description="Milk, eggs, bread"
-            ))
+            ), user_id=1)
         """
         db_todo = Todo(
             title=todo_data.title,
             description=todo_data.description,
             due_date=todo_data.due_date,
-            status=TodoStatus.PENDING  # Always start with PENDING
+            status=TodoStatus.PENDING,  # Always start with PENDING
+            user_id=user_id
         )
         db.add(db_todo)
         db.commit()
@@ -45,21 +47,25 @@ class TodoService:
         return db_todo
 
     @staticmethod
-    def get_todo_by_id(db: Session, todo_id: int) -> Todo:
+    def get_todo_by_id(db: Session, todo_id: int, user_id: int) -> Todo:
         """
-        Get a todo by its ID.
+        Get a todo by its ID for a specific user.
         
         Args:
             db: Database session
             todo_id: ID of the todo to retrieve
+            user_id: ID of the user who owns the todo
             
         Returns:
             Todo: Found todo object
             
         Raises:
-            HTTPException: If todo not found (404)
+            HTTPException: If todo not found or doesn't belong to user (404)
         """
-        db_todo = db.query(Todo).filter(Todo.id == todo_id).first()
+        db_todo = db.query(Todo).filter(
+            Todo.id == todo_id,
+            Todo.user_id == user_id
+        ).first()
         if not db_todo:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -70,15 +76,17 @@ class TodoService:
     @staticmethod
     def get_all_todos(
         db: Session,
+        user_id: int,
         status_filter: Optional[TodoStatus] = None,
         skip: int = 0,
         limit: int = 100
     ) -> List[Todo]:
         """
-        Get all todos with optional filtering.
+        Get all todos for a specific user with optional filtering.
         
         Args:
             db: Database session
+            user_id: ID of the user who owns the todos
             status_filter: Optional status filter (Pending/Done/Cancelled)
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
@@ -87,13 +95,13 @@ class TodoService:
             List[Todo]: List of todo objects
             
         Example:
-            # Get all pending todos
-            todos = TodoService.get_all_todos(db, status_filter=TodoStatus.PENDING)
+            # Get all pending todos for user
+            todos = TodoService.get_all_todos(db, user_id=1, status_filter=TodoStatus.PENDING)
             
             # Get all todos with pagination
-            todos = TodoService.get_all_todos(db, skip=10, limit=20)
+            todos = TodoService.get_all_todos(db, user_id=1, skip=10, limit=20)
         """
-        query = db.query(Todo)
+        query = db.query(Todo).filter(Todo.user_id == user_id)
         
         # Apply status filter if provided
         if status_filter:
@@ -106,19 +114,21 @@ class TodoService:
     @staticmethod
     def get_todos_count(
         db: Session,
+        user_id: int,
         status_filter: Optional[TodoStatus] = None
     ) -> int:
         """
-        Get count of todos with optional filtering.
+        Get count of todos for a specific user with optional filtering.
         
         Args:
             db: Database session
+            user_id: ID of the user who owns the todos
             status_filter: Optional status filter
             
         Returns:
             int: Count of todos
         """
-        query = db.query(Todo)
+        query = db.query(Todo).filter(Todo.user_id == user_id)
         if status_filter:
             query = query.filter(Todo.status == status_filter)
         return query.count()
@@ -127,7 +137,8 @@ class TodoService:
     def update_todo(
         db: Session,
         todo_id: int,
-        todo_data: TodoUpdate
+        todo_data: TodoUpdate,
+        user_id: int
     ) -> Todo:
         """
         Update an existing todo (partial update supported).
@@ -136,22 +147,24 @@ class TodoService:
             db: Database session
             todo_id: ID of the todo to update
             todo_data: Update data (only provided fields will be updated)
+            user_id: ID of the user who owns the todo
             
         Returns:
             Todo: Updated todo object
             
         Raises:
-            HTTPException: If todo not found (404)
+            HTTPException: If todo not found or doesn't belong to user (404)
             
         Example:
             # Update only status
             todo = TodoService.update_todo(
                 db,
                 todo_id=1,
-                TodoUpdate(status=TodoStatus.DONE)
+                TodoUpdate(status=TodoStatus.DONE),
+                user_id=1
             )
         """
-        db_todo = TodoService.get_todo_by_id(db, todo_id)
+        db_todo = TodoService.get_todo_by_id(db, todo_id, user_id)
         
         # Update only the fields that were provided (exclude_unset=True)
         update_data = todo_data.model_dump(exclude_unset=True)
@@ -164,20 +177,21 @@ class TodoService:
         return db_todo
 
     @staticmethod
-    def delete_todo(db: Session, todo_id: int) -> None:
+    def delete_todo(db: Session, todo_id: int, user_id: int) -> None:
         """
         Delete a todo by its ID.
         
         Args:
             db: Database session
             todo_id: ID of the todo to delete
+            user_id: ID of the user who owns the todo
             
         Raises:
-            HTTPException: If todo not found (404)
+            HTTPException: If todo not found or doesn't belong to user (404)
             
         Example:
-            TodoService.delete_todo(db, todo_id=1)
+            TodoService.delete_todo(db, todo_id=1, user_id=1)
         """
-        db_todo = TodoService.get_todo_by_id(db, todo_id)
+        db_todo = TodoService.get_todo_by_id(db, todo_id, user_id)
         db.delete(db_todo)
         db.commit()

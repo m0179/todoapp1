@@ -9,6 +9,8 @@ from app.database import get_db
 from app.schemas.todo import TodoCreate, TodoUpdate, TodoResponse, TodoListResponse
 from app.services.todo_service import TodoService
 from app.models.todo import TodoStatus
+from app.dependencies.auth import get_current_user
+from app.models.user import User
 
 # Create router with prefix and tags for organization
 router = APIRouter(
@@ -26,7 +28,8 @@ router = APIRouter(
 )
 def create_todo(
     todo: TodoCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> TodoResponse:
     """
     Create a new todo.
@@ -36,23 +39,8 @@ def create_todo(
     - **due_date**: Optional, must be in the future
     - **status**: Automatically set to Pending
     """
-    return TodoService.create_todo(db, todo)
-def add(a: int, b: int) -> int:
-    """
-    Add two integers and return the result.
-    
-    Args:
-        a (int): The first integer to add.
-        b (int): The second integer to add.
-    
-    Returns:
-        int: The sum of a and b.
-    
-    Example:
-        result = add(2, 3)
-        print(result)  # Output: 5
-    """
-    return a + b
+    return TodoService.create_todo(db, todo, current_user.id)
+
 
 @router.get(
     "/",
@@ -76,7 +64,8 @@ def get_todos(
         le=1000,
         description="Maximum number of records to return (max 1000)"
     ),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> TodoListResponse:
     """
     Get all todos with optional filtering.
@@ -85,8 +74,8 @@ def get_todos(
     - **skip**: Number of records to skip (default: 0)
     - **limit**: Maximum records to return (default: 100, max: 1000)
     """
-    todos = TodoService.get_all_todos(db, status_filter, skip, limit)
-    total = TodoService.get_todos_count(db, status_filter)
+    todos = TodoService.get_all_todos(db, current_user.id, status_filter, skip, limit)
+    total = TodoService.get_todos_count(db, current_user.id, status_filter)
     return TodoListResponse(todos=todos, total=total)
 
 
@@ -98,7 +87,8 @@ def get_todos(
 )
 def get_todo(
     todo_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> TodoResponse:
     """
     Get a single todo by ID.
@@ -107,7 +97,7 @@ def get_todo(
     
     Returns 404 if todo not found.
     """
-    return TodoService.get_todo_by_id(db, todo_id)
+    return TodoService.get_todo_by_id(db, todo_id, current_user.id)
 
 
 @router.put(
@@ -119,7 +109,8 @@ def get_todo(
 def update_todo(
     todo_id: int,
     todo: TodoUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> TodoResponse:
     """
     Update an existing todo (partial update supported).
@@ -132,7 +123,7 @@ def update_todo(
     
     Only provided fields will be updated. Returns 404 if todo not found.
     """
-    return TodoService.update_todo(db, todo_id, todo)
+    return TodoService.update_todo(db, todo_id, todo, current_user.id)
 
 
 @router.delete(
@@ -143,7 +134,8 @@ def update_todo(
 )
 def delete_todo(
     todo_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> None:
     """
     Delete a todo by ID.
@@ -152,4 +144,4 @@ def delete_todo(
     
     Returns 204 No Content on success, 404 if todo not found.
     """
-    TodoService.delete_todo(db, todo_id)
+    TodoService.delete_todo(db, todo_id, current_user.id)

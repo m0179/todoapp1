@@ -14,10 +14,16 @@ class Settings(BaseSettings):
         DATABASE_URL: PostgreSQL database connection string
         APP_NAME: Name of the application
         DEBUG: Debug mode flag
+        SECRET_KEY: Secret key for JWT token encoding/decoding
+        ALGORITHM: Algorithm used for JWT encoding (HS256)
+        ACCESS_TOKEN_EXPIRE_MINUTES: JWT token expiration time in minutes
     """
     DATABASE_URL: str = "postgresql://username:password@localhost:5432/todoapp"
     APP_NAME: str = "Todo API"
     DEBUG: bool = True
+    SECRET_KEY: str = "your-secret-key-here-change-in-production-minimum-32-characters-long"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     class Config:
         env_file = ".env"
