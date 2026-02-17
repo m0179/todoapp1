@@ -4,12 +4,10 @@ Initializes the app and registers routes.
 """
 from fastapi import FastAPI
 from app.config import settings
-from app.routes import todo_router
-from app.database import engine, Base
+from app.routes import todo_router, auth_router
 
-# Create database tables
-# Note: In production, use Alembic migrations instead
-Base.metadata.create_all(bind=engine)
+# Database tables are managed by Alembic migrations
+# Run: alembic upgrade head
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -38,6 +36,7 @@ def read_root():
 
 
 # Register routers
+app.include_router(auth_router)
 app.include_router(todo_router)
 
 
