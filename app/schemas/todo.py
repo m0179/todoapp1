@@ -53,7 +53,7 @@ class TodoCreate(TodoBase):
     Schema for creating a new Todo.
     Status defaults to PENDING and is not required in request.
     """
-    pass
+    todolist_id: int = Field(..., description="ID of the todolist this todo belongs to")
 
 
 class TodoUpdate(BaseModel):
@@ -80,6 +80,10 @@ class TodoUpdate(BaseModel):
         None,
         description="Due date for the todo (optional)"
     )
+    todolist_id: Optional[int] = Field(
+        None,
+        description="Move todo to a different todolist (optional)"
+    )
 
     @field_validator('due_date')
     @classmethod
@@ -96,6 +100,7 @@ class TodoResponse(TodoBase):
     Includes all fields from the database model.
     """
     id: int
+    todolist_id: int
     status: TodoStatus
     created_at: datetime
     updated_at: datetime
@@ -105,9 +110,9 @@ class TodoResponse(TodoBase):
         from_attributes = True  # Allows creation from SQLAlchemy models
 
 
-class TodoListResponse(BaseModel):
+class PaginatedTodoResponse(BaseModel):
     """
-    Schema for list of todos response.
+    Schema for paginated list of todos response.
     """
     todos: List[TodoResponse]
     total: int = Field(..., description="Total number of todos")

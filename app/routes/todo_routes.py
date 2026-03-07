@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from app.database import get_db
-from app.schemas.todo import TodoCreate, TodoUpdate, TodoResponse, TodoListResponse
+from app.schemas.todo import TodoCreate, TodoUpdate, TodoResponse, PaginatedTodoResponse
 from app.services.todo_service import TodoService
 from app.models.todo import TodoStatus
 from app.dependencies.auth import get_current_user
@@ -44,11 +44,15 @@ def create_todo(
 
 @router.get(
     "/",
-    response_model=TodoListResponse,
+    response_model=PaginatedTodoResponse,
     summary="Get all todos",
-    description="Retrieve all todos with optional filtering by status and pagination support."
+    description="Retrieve all todos with optional filtering by todolist, status, and pagination support."
 )
 def get_todos(
+    todolist_id: Optional[int] = Query(
+        None,
+        description="Filter todos by todolist ID"
+    ),
     status_filter: Optional[TodoStatus] = Query(
         None,
         description="Filter todos by status (Pending, Done, or Cancelled)"
@@ -66,17 +70,18 @@ def get_todos(
     ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-) -> TodoListResponse:
+) -> PaginatedTodoResponse:
     """
     Get all todos with optional filtering.
-    
+
+    - **todolist_id**: Optional filter by todolist
     - **status_filter**: Optional filter by status (Pending/Done/Cancelled)
     - **skip**: Number of records to skip (default: 0)
     - **limit**: Maximum records to return (default: 100, max: 1000)
     """
-    todos = TodoService.get_all_todos(db, current_user.id, status_filter, skip, limit)
-    total = TodoService.get_todos_count(db, current_user.id, status_filter)
-    return TodoListResponse(todos=todos, total=total)
+    todos = TodoService.get_all_todos(db, current_user.id, todolist_id, status_filter, skip, limit)
+    total = TodoService.get_todos_count(db, current_user.id, todolist_id, status_filter)
+    return PaginatedTodoResponse(todos=todos, total=total)
 
 
 @router.get(
