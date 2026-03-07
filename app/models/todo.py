@@ -49,7 +49,7 @@ class Todo(Base):
         index=True
     )
     due_date = Column(DateTime(timezone=True), nullable=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    todolist_id = Column(Integer, ForeignKey("todolists.id"), nullable=False, index=True)
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -62,8 +62,8 @@ class Todo(Base):
         nullable=False
     )
 
-    # Relationship to user
-    owner = relationship("User", back_populates="todos")
+    # Relationship to todolist
+    todolist = relationship("TodoList", back_populates="todos")
 
     def __repr__(self) -> str:
         """String representation of Todo object."""
