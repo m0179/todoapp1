@@ -4,7 +4,7 @@ Initializes the app and registers routes.
 """
 from fastapi import FastAPI
 from app.config import settings
-from app.routes import todo_router, auth_router
+from app.routes import todo_router, auth_router, todolist_router
 
 # Database tables are managed by Alembic migrations
 # Run: alembic upgrade head
@@ -37,6 +37,7 @@ def read_root():
 
 # Register routers
 app.include_router(auth_router)
+app.include_router(todolist_router)
 app.include_router(todo_router)
 
 
