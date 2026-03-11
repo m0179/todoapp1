@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
 from app.schemas.todolist import TodoListCreate, TodoListUpdate, TodoListResponse, TodoListWithTodos
+from app.schemas.collaborator import InviteRequest, CollaboratorResponse
 from app.services.todolist_service import TodoListService
+from app.services.collaborator_service import CollaboratorService
 from app.dependencies.auth import get_current_user
 from app.models.user import User
 
@@ -134,3 +136,28 @@ def delete_todolist(
     Delete a todo list and all its todos. Returns 404 if not found.
     """
     TodoListService.delete_todolist(db, todolist_id, current_user.id)
+
+
+@router.post(
+    "/{todolist_id}/invite",
+    response_model=CollaboratorResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Invite a user to collaborate",
+    description=(
+        "Invite a user to collaborate on this todo list by their email or username. "
+        "If the user is already registered, they get immediate access. "
+        "If not, a mock invite email is logged and access is granted when they sign up."
+    )
+)
+def invite_collaborator(
+    todolist_id: int,
+    invite: InviteRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> CollaboratorResponse:
+    """
+    Invite a collaborator. Only the list owner can invite.
+
+    - **email_or_username**: Email address or username of the person to invite
+    """
+    return CollaboratorService.invite_user(db, todolist_id, current_user.id, invite.email_or_username)
