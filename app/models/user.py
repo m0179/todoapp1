@@ -40,5 +40,6 @@ class User(Base):
         nullable=False
     )
 
-    # Relationship to todolists
+    # Relationships
     todolists = relationship("TodoList", back_populates="owner", cascade="all, delete-orphan")
+    collaborations = relationship("TodoListCollaborator", back_populates="user")
