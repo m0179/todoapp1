@@ -9,8 +9,6 @@ from app.services.auth_service import AuthService
 from app.services.user_service import UserService
 from app.models.user import User
 
-
-# OAuth2 scheme for token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
@@ -22,7 +20,7 @@ def get_current_user(
     Dependency to get the current authenticated user from JWT token.
     
     Args:
-        token: JWT token from Authorization header
+        token: JWT token from OAuth2 password bearer
         db: Database session
         
     Returns:
@@ -34,7 +32,7 @@ def get_current_user(
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
+        headers={"WWW-Authenticate": "Bearer"}
     )
     
     # Decode token
