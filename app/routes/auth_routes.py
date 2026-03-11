@@ -8,6 +8,7 @@ from app.database import get_db
 from app.schemas.user import UserCreate, UserResponse, UserLogin, Token
 from app.services.user_service import UserService
 from app.services.auth_service import AuthService
+from app.services.collaborator_service import CollaboratorService
 from app.dependencies.auth import get_current_user
 from app.models.user import User
 
@@ -37,6 +38,7 @@ def register_user(
         Created user data
     """
     user = UserService.create_user(db, user_data)
+    CollaboratorService.activate_pending_invites(db, user)
     return user
 
 
@@ -44,14 +46,14 @@ def register_user(
     "/login",
     response_model=Token,
     summary="Login user",
-    description="Authenticate user with email and password, returns JWT access token valid for 30 minutes."
+    description="OAuth2 compatible token login. Use email as username field."
 )
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ) -> Token:
     """
-    Login user and return JWT token.
+    OAuth2 compatible token login - use email as username.
     
     Args:
         form_data: OAuth2 form with username (email) and password
@@ -63,14 +65,14 @@ def login(
     Raises:
         HTTPException: If credentials are invalid
     """
-    # OAuth2PasswordRequestForm uses 'username' field, but we treat it as email
+    # Use form_data.username as email since OAuth2 spec requires "username" field
     user = UserService.authenticate_user(db, email=form_data.username, password=form_data.password)
     
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": "Bearer"}
         )
     
     # Create access token

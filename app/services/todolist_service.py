@@ -3,31 +3,18 @@ Service layer for TodoList business logic.
 Handles all CRUD operations for todo lists.
 """
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_
 from typing import List
 from app.models.todolist import TodoList
+from app.models.collaborator import TodoListCollaborator, CollaboratorStatus
 from app.schemas.todolist import TodoListCreate, TodoListUpdate
 from fastapi import HTTPException, status
 
 
 class TodoListService:
-    """
-    Service class for TodoList operations.
-    All methods take user_id to enforce ownership-based authorization.
-    """
 
     @staticmethod
     def create_todolist(db: Session, todolist_data: TodoListCreate, user_id: int) -> TodoList:
-        """
-        Create a new todo list for the given user.
-
-        Args:
-            db: Database session
-            todolist_data: TodoList creation data
-            user_id: ID of the user creating the list
-
-        Returns:
-            TodoList: Created todolist object
-        """
         db_todolist = TodoList(
             name=todolist_data.name,
             description=todolist_data.description,
@@ -41,24 +28,30 @@ class TodoListService:
         return db_todolist
 
     @staticmethod
+    def _active_collab_join(query, user_id: int):
+        """Helper: outerjoin collaborators table filtered to this user's active records."""
+        return query.outerjoin(
+            TodoListCollaborator,
+            (TodoListCollaborator.todolist_id == TodoList.id) &
+            (TodoListCollaborator.user_id == user_id) &
+            (TodoListCollaborator.status == CollaboratorStatus.active)
+        )
+
+    @staticmethod
+    def _access_filter(user_id: int):
+        """Helper: OR condition for owner or active collaborator."""
+        return or_(
+            TodoList.user_id == user_id,
+            TodoListCollaborator.user_id == user_id
+        )
+
+    @staticmethod
     def get_todolist_by_id(db: Session, todolist_id: int, user_id: int) -> TodoList:
-        """
-        Get a todolist by its ID, verifying it belongs to the given user.
-
-        Args:
-            db: Database session
-            todolist_id: ID of the todolist to retrieve
-            user_id: ID of the user who must own the list
-
-        Returns:
-            TodoList: Found todolist object
-
-        Raises:
-            HTTPException: 404 if not found or not owned by user
-        """
-        db_todolist = db.query(TodoList).filter(
+        """Get a todolist by ID — accessible by owner or active collaborator."""
+        query = TodoListService._active_collab_join(db.query(TodoList), user_id)
+        db_todolist = query.filter(
             TodoList.id == todolist_id,
-            TodoList.user_id == user_id
+            TodoListService._access_filter(user_id)
         ).first()
         if not db_todolist:
             raise HTTPException(
@@ -74,21 +67,12 @@ class TodoListService:
         skip: int = 0,
         limit: int = 100
     ) -> List[TodoList]:
-        """
-        Get all todolists for a specific user with pagination.
-
-        Args:
-            db: Database session
-            user_id: ID of the user who owns the lists
-            skip: Number of records to skip (for pagination)
-            limit: Maximum number of records to return
-
-        Returns:
-            List[TodoList]: List of todolist objects
-        """
+        """Get all todolists the user owns or collaborates on."""
+        query = TodoListService._active_collab_join(db.query(TodoList), user_id)
         return (
-            db.query(TodoList)
-            .filter(TodoList.user_id == user_id)
+            query
+            .filter(TodoListService._access_filter(user_id))
+            .distinct()
             .offset(skip)
             .limit(limit)
             .all()
@@ -96,40 +80,25 @@ class TodoListService:
 
     @staticmethod
     def get_todolists_count(db: Session, user_id: int) -> int:
-        """
-        Get the total number of todolists for a user.
-
-        Args:
-            db: Database session
-            user_id: ID of the user
-
-        Returns:
-            int: Count of todolists
-        """
-        return db.query(TodoList).filter(TodoList.user_id == user_id).count()
+        query = TodoListService._active_collab_join(db.query(TodoList), user_id)
+        return (
+            query
+            .filter(TodoListService._access_filter(user_id))
+            .distinct()
+            .count()
+        )
 
     @staticmethod
     def get_todolist_with_todos(db: Session, todolist_id: int, user_id: int) -> TodoList:
-        """
-        Get a todolist with all its todos eagerly loaded.
-
-        Args:
-            db: Database session
-            todolist_id: ID of the todolist to retrieve
-            user_id: ID of the user who must own the list
-
-        Returns:
-            TodoList: Todolist with .todos already populated
-
-        Raises:
-            HTTPException: 404 if not found or not owned by user
-        """
-        db_todolist = (
-            db.query(TodoList)
-            .options(joinedload(TodoList.todos))
-            .filter(TodoList.id == todolist_id, TodoList.user_id == user_id)
-            .first()
+        """Get a todolist with all its todos eagerly loaded — owner or collaborator."""
+        query = TodoListService._active_collab_join(
+            db.query(TodoList).options(joinedload(TodoList.todos)),
+            user_id
         )
+        db_todolist = query.filter(
+            TodoList.id == todolist_id,
+            TodoListService._access_filter(user_id)
+        ).first()
         if not db_todolist:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -144,44 +113,28 @@ class TodoListService:
         todolist_data: TodoListUpdate,
         user_id: int
     ) -> TodoList:
-        """
-        Update an existing todolist (partial update supported).
-
-        Args:
-            db: Database session
-            todolist_id: ID of the todolist to update
-            todolist_data: Update data (only provided fields will be updated)
-            user_id: ID of the user who owns the list
-
-        Returns:
-            TodoList: Updated todolist object
-
-        Raises:
-            HTTPException: 404 if not found or not owned by user
-        """
+        """Update todolist metadata — owner only."""
         db_todolist = TodoListService.get_todolist_by_id(db, todolist_id, user_id)
-
+        if db_todolist.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the list owner can update this list"
+            )
         update_data = todolist_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_todolist, field, value)
-
         db.commit()
         db.refresh(db_todolist)
         return db_todolist
 
     @staticmethod
     def delete_todolist(db: Session, todolist_id: int, user_id: int) -> None:
-        """
-        Delete a todolist by its ID (cascades to all its todos).
-
-        Args:
-            db: Database session
-            todolist_id: ID of the todolist to delete
-            user_id: ID of the user who owns the list
-
-        Raises:
-            HTTPException: 404 if not found or not owned by user
-        """
+        """Delete a todolist — owner only, cascades to all todos."""
         db_todolist = TodoListService.get_todolist_by_id(db, todolist_id, user_id)
+        if db_todolist.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the list owner can delete this list"
+            )
         db.delete(db_todolist)
         db.commit()

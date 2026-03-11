@@ -17,6 +17,10 @@ from app.schemas.user import (
     Token,
     TokenData,
 )
+from app.schemas.collaborator import (
+    InviteRequest,
+    CollaboratorResponse,
+)
 
 __all__ = [
     "TodoCreate",
@@ -32,4 +36,6 @@ __all__ = [
     "UserResponse",
     "Token",
     "TokenData",
+    "InviteRequest",
+    "CollaboratorResponse",
 ]

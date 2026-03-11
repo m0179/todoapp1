@@ -46,6 +46,7 @@ class TodoList(Base):
     # Relationships
     owner = relationship("User", back_populates="todolists")
     todos = relationship("Todo", back_populates="todolist", cascade="all, delete-orphan")
+    collaborators = relationship("TodoListCollaborator", back_populates="todolist", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         """String representation of TodoList object."""
